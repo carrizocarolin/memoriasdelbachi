@@ -152,10 +152,10 @@ body.ducked .zone{opacity:.35;}
   text-transform:uppercase;text-wrap:balance;
 }
 .start p{margin:0;color:var(--muted);font-size:13px;line-height:1.55;}
-.start .credit{
-  margin-top:6px;font-size:11px;letter-spacing:.08em;line-height:1.5;
-  color:var(--muted);text-wrap:balance;
-}
+.start .credit{display:grid;gap:4px;margin-top:6px;text-wrap:balance;}
+.start .credit p{font-size:11px;letter-spacing:.06em;line-height:1.5;color:var(--muted);}
+.start .credit .teacher{color:var(--fg);}
+.start .credit .thanks{margin-top:4px;font-size:10.5px;font-style:italic;opacity:.85;}
 .start .kw{color:var(--rec);font-weight:500;letter-spacing:.06em;}
 .start .logo{width:min(240px,70vw);height:auto;margin-bottom:6px;}
 .start h1 small{display:block;margin-top:8px;font-weight:500;font-size:.42em;letter-spacing:.14em;color:var(--glow);}
@@ -194,9 +194,9 @@ body.inmenu .turn{display:none;}
   }
   .start .logo{grid-area:logo;width:min(190px,40vw);margin:0;}
   .start h1{grid-area:title;font-size:clamp(1.7rem,8vh,2.6rem);}
-  .start p{grid-area:text;font-size:12px;}
+  .start .inner > p{grid-area:text;font-size:12px;}
   .start .menu{grid-area:menu;margin:0;}
-  .start .credit{grid-area:credit;margin-top:2px;}
+  .start .credit{grid-area:credit;margin-top:2px;gap:2px;}
   .menu button{padding:11px 16px;}
   .menu b{font-size:1.25rem;}
   .sheet{max-height:92dvh;}
@@ -297,7 +297,11 @@ body.inmenu .hud, body.inmenu .era{visibility:hidden;}
       <button type="button" data-gate="2"><b>Portón 2</b><span>14 sonidos</span></button>
       <button type="button" data-gate="3"><b>Portón 3</b><span>14 sonidos</span></button>
     </nav>
-    <p class="credit">Propuesta de estudiantes de composición experimental de 5to año</p>
+    <footer class="credit">
+      <p>Propuesta de estudiantes de Composición Experimental de 5to año del Bachillerato de Bellas Artes UNLP</p>
+      <p class="teacher">Docente: Carolina Carrizo</p>
+      <p class="thanks">Gracias a Javier Li por el material de archivo proporcionado</p>
+    </footer>
   </div>
 </div>
 
