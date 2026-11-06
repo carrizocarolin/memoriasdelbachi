@@ -1,0 +1,786 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px/1.4 system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
+<title>Memorias del Bachi</title>
+<meta name="theme-color" content="#0d0d0c">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: la foto ocupa la pantalla; cada barrote fino es un fader táctil sobre la imagen. Un solo look oscuro, a propósito. */
+:root{
+  --bg:#0d0d0c;
+  --panel:#171614;
+  --line:#34312c;
+  --fg:#efece4;
+  --muted:#9b978c;
+  --glow:#ffb547;      /* óxido encendido */
+  --glow-soft:rgba(255,181,71,.35);
+  --rec:#ff4d3d;
+  --hud-h:52px;
+  --green:#3fbf6a;
+  --green-ink:#06210f;
+  --veil:rgba(10,10,9,.82);
+  --display:"Oswald","Arial Narrow",Impact,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+  color-scheme:dark;
+}
+html,body{height:100%;}
+body{
+  background:var(--bg);color:var(--fg);font-family:var(--mono);
+  overflow:hidden;overscroll-behavior:none;
+  -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;
+  -webkit-tap-highlight-color:transparent;
+}
+.stage{
+  height:calc(100% - var(--hud-h));display:grid;place-items:center;
+  padding-left:max(0px,env(safe-area-inset-left,0px));
+  padding-right:max(0px,env(safe-area-inset-right,0px));
+}
+/* La caja muestra un recorte de la foto (1200×1600): entera en vertical,
+   la franja de los barrotes en horizontal y en la compu. Tamaño y recorte los fija layout(). */
+.gate{
+  position:relative;max-width:100%;
+  background-image:url("reja.jpg");background-repeat:no-repeat;background-size:100% auto;
+  touch-action:none;
+}
+.zone{position:absolute;top:0;bottom:0;touch-action:none;cursor:ns-resize;transition:opacity .3s;}
+body.ducked .zone{opacity:.35;}
+.zone:focus-visible{outline:2px solid var(--glow);outline-offset:-2px;}
+.lit{
+  position:absolute;left:50%;transform:translateX(-50%);
+  width:max(3px,.55%);border-radius:2px;
+  background:linear-gradient(to top,var(--glow),rgba(255,181,71,.15));
+  pointer-events:none;opacity:0;
+}
+.knob{
+  position:absolute;left:50%;
+  width:max(16px,74%);height:max(8px,calc(var(--gw,400px) * .022));
+  transform:translate(-50%,-50%);border-radius:3px;
+  background:linear-gradient(#3a3631,#191715);
+  border:1px solid #57514a;box-shadow:0 1px 3px rgba(0,0,0,.7);
+  pointer-events:none;transition:box-shadow .15s,border-color .15s;
+}
+.zone.on .knob{border-color:var(--glow);}
+.zone.active .knob{box-shadow:0 0 0 2px var(--glow),0 0 18px var(--glow-soft);}
+.tag{
+  position:absolute;left:50%;transform:translateX(-50%);
+  font-size:clamp(8px,calc(var(--gw,400px) * .024),12px);color:var(--fg);
+  background:rgba(13,13,12,.7);padding:1px 4px;border-radius:3px;
+  pointer-events:none;font-variant-numeric:tabular-nums;
+}
+.tag.has{color:var(--bg);background:var(--glow);}
+/* Botones "ayer" / "hoy" bajo el portón */
+.era{
+  position:absolute;z-index:1;
+  font-family:var(--display);font-weight:500;text-transform:uppercase;letter-spacing:.12em;
+  font-size:clamp(11px,calc(var(--gw,400px) * .028),16px);line-height:1;
+  color:var(--green-ink);background:var(--green);
+  border:1px solid var(--green);border-radius:4px;
+  padding:.55em .9em .5em;cursor:pointer;touch-action:manipulation;
+  box-shadow:0 2px 6px rgba(0,0,0,.45);
+}
+.era.ayer{left:3.5%;}
+.era.hoy{right:3.5%;}
+.era::before{content:"▶";font-size:.7em;margin-right:.55em;vertical-align:.1em;}
+.era.playing{background:var(--green-ink);color:var(--green);}
+.era.playing::before{content:"■";}
+.era:focus-visible{outline:2px solid var(--fg);outline-offset:2px;}
+@media (prefers-reduced-motion:no-preference){
+  .era.playing{animation:pulse 1.2s ease-in-out infinite;}
+  @keyframes pulse{50%{box-shadow:0 0 0 5px rgba(63,191,106,.25);}}
+}
+
+.hud{
+  position:fixed;left:0;right:0;bottom:0;
+  padding:8px max(16px,env(safe-area-inset-right,0px)) calc(10px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));
+  display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;
+  font-size:11px;letter-spacing:.06em;color:var(--muted);
+  pointer-events:none;
+}
+.hud .btns{display:flex;gap:8px;}
+.pill{
+  pointer-events:auto;font:inherit;font-size:11px;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--fg);background:rgba(20,19,17,.8);border:1px solid #3b3833;
+  padding:8px 12px;border-radius:999px;cursor:pointer;
+}
+.pill.hot{background:var(--glow);color:var(--bg);border-color:var(--glow);}
+.pill:focus-visible{outline:2px solid var(--glow);outline-offset:2px;}
+
+/* Panel de carga de audios */
+.sheet{
+  position:fixed;left:0;right:0;bottom:0;z-index:4;
+  margin-inline:auto;width:min(100%,560px);box-sizing:border-box;
+  max-height:78dvh;display:flex;flex-direction:column;
+  background:var(--panel);border-top:1px solid var(--line);
+  border-radius:14px 14px 0 0;
+  padding:14px max(16px,env(safe-area-inset-right,0px)) calc(14px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));
+  box-shadow:0 -10px 40px rgba(0,0,0,.6);
+}
+.sheet header{display:flex;justify-content:space-between;align-items:baseline;gap:12px;}
+.sheet h2{margin:0;font-family:var(--display);font-weight:500;font-size:1.3rem;letter-spacing:.04em;text-transform:uppercase;}
+.sheet .hint{margin:6px 0 10px;color:var(--muted);font-size:12px;line-height:1.5;}
+.sheet .all{width:100%;margin-bottom:10px;padding:11px;font-size:12px;}
+.rows{overflow-y:auto;display:grid;gap:6px;padding-bottom:4px;}
+.row{
+  display:grid;grid-template-columns:2.2em minmax(0,1fr) auto auto;align-items:center;gap:8px;
+  padding:8px 10px;border:1px solid var(--line);border-radius:8px;font-size:12px;
+}
+.row .n{font-family:var(--display);font-size:1.1rem;color:var(--muted);font-variant-numeric:tabular-nums;}
+.row.has .n{color:var(--glow);}
+.row .name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted);}
+.row.has .name{color:var(--fg);}
+.row button{font:inherit;font-size:11px;color:var(--fg);background:transparent;border:1px solid var(--line);border-radius:6px;padding:6px 9px;cursor:pointer;}
+.row button.go{border-color:var(--glow);color:var(--glow);}
+.row button:disabled{opacity:.3;}
+
+.start{
+  position:fixed;inset:0;z-index:5;display:grid;place-items:center;
+  overflow-y:auto;padding-block:24px;
+  background:var(--veil);
+  backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);
+  padding-left:max(16px,env(safe-area-inset-left,0px));
+  padding-right:max(16px,env(safe-area-inset-right,0px));
+  color:var(--fg);
+}
+.start .inner{display:grid;gap:14px;justify-items:center;text-align:center;max-width:22rem;}
+.start h1{
+  margin:0;font-family:var(--display);font-weight:700;
+  font-size:clamp(2.4rem,11vw,3.6rem);line-height:.95;letter-spacing:.01em;
+  text-transform:uppercase;text-wrap:balance;
+}
+.start p{margin:0;color:var(--muted);font-size:13px;line-height:1.55;}
+.start .kw{color:var(--rec);font-weight:500;letter-spacing:.06em;}
+.start .logo{width:min(240px,70vw);height:auto;margin-bottom:6px;}
+.start h1 small{display:block;margin-top:8px;font-weight:500;font-size:.42em;letter-spacing:.14em;color:var(--glow);}
+.menu{display:grid;gap:10px;width:100%;margin-top:8px;}
+.menu button{
+  display:flex;justify-content:space-between;align-items:baseline;gap:12px;
+  width:100%;padding:14px 18px;border-radius:10px;cursor:pointer;
+  font:inherit;color:var(--fg);background:rgba(23,22,20,.85);border:1px solid var(--line);
+  text-align:left;
+}
+.menu button:hover,.menu button:focus-visible{border-color:var(--glow);outline:none;}
+.menu b{font-family:var(--display);font-weight:500;font-size:1.5rem;letter-spacing:.06em;text-transform:uppercase;}
+.menu span{font-size:11px;color:var(--muted);letter-spacing:.06em;}
+.start .tap{
+  margin-top:6px;font-family:var(--display);font-weight:500;font-size:1.05rem;
+  letter-spacing:.12em;text-transform:uppercase;color:var(--bg);
+  background:var(--glow);padding:12px 22px;border-radius:999px;
+}
+#gateName{color:var(--glow);}
+.turn{
+  display:none;position:fixed;left:50%;transform:translateX(-50%);z-index:2;
+  bottom:calc(var(--hud-h) + 10px + env(safe-area-inset-bottom,0px));
+  font-size:11px;letter-spacing:.06em;color:var(--fg);white-space:nowrap;
+  background:rgba(13,13,12,.8);border:1px solid var(--line);border-radius:999px;padding:6px 12px;
+  pointer-events:none;
+}
+@media (orientation:portrait) and (max-width:600px){ .turn{display:block;} }
+body.inmenu .turn{display:none;}
+/* Celular acostado: título a la izquierda, portones a la derecha */
+@media (orientation:landscape) and (max-height:620px){
+  .start{padding-block:16px;}
+  .start .inner{
+    max-width:min(920px,100%);column-gap:clamp(20px,5vw,56px);row-gap:10px;align-items:center;
+    grid-template-columns:minmax(0,1fr) minmax(0,1fr);
+    grid-template-areas:"logo menu" "title menu" "text menu";
+  }
+  .start .logo{grid-area:logo;width:min(190px,40vw);margin:0;}
+  .start h1{grid-area:title;font-size:clamp(1.7rem,8vh,2.6rem);}
+  .start p{grid-area:text;font-size:12px;}
+  .start .menu{grid-area:menu;margin:0;}
+  .menu button{padding:11px 16px;}
+  .menu b{font-size:1.25rem;}
+  .sheet{max-height:92dvh;}
+  .take{grid-template-columns:minmax(0,1fr) minmax(0,1fr);column-gap:16px;align-items:start;}
+  .take audio{grid-column:1/-1;}
+}
+/* Pantallas grandes */
+@media (min-width:900px) and (min-height:621px){
+  .start h1{font-size:4.2rem;}
+  .start .inner{max-width:26rem;}
+  .start p{font-size:14px;}
+}
+body.inmenu .hud{visibility:hidden;}
+.rec{
+  pointer-events:auto;display:inline-flex;align-items:center;gap:8px;
+  font:inherit;font-size:11px;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--fg);background:rgba(20,19,17,.8);border:1px solid #3b3833;
+  padding:8px 12px 8px 10px;border-radius:999px;cursor:pointer;font-variant-numeric:tabular-nums;
+}
+.rec::before{content:"";width:12px;height:12px;border-radius:50%;background:var(--rec);}
+.rec.on{border-color:var(--rec);color:var(--rec);}
+.rec.on::before{border-radius:2px;}
+.rec:focus-visible{outline:2px solid var(--glow);outline-offset:2px;}
+@media (prefers-reduced-motion:no-preference){
+  .rec.on::before{animation:blink 1s steps(2,start) infinite;}
+  @keyframes blink{to{opacity:.25;}}
+}
+.take{display:grid;gap:12px;padding-top:6px;}
+.take audio{width:100%;}
+.take label{display:grid;gap:6px;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);}
+.take input{
+  font:inherit;font-size:16px;color:var(--fg);background:var(--bg);
+  border:1px solid var(--line);border-radius:8px;padding:10px 12px;
+  -webkit-user-select:text;user-select:text;
+}
+.take input:focus{outline:2px solid var(--glow);outline-offset:0;}
+.take .actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+.take .actions .send{grid-column:1/-1;padding:13px;font-size:13px;}
+.take .msg{margin:0;font-size:12px;line-height:1.5;color:var(--muted);min-height:1.5em;}
+.take .msg.ok{color:var(--glow);}
+.take .msg.err{color:var(--rec);}
+</style>
+</head>
+<body class="inmenu">
+
+
+<main class="stage">
+  <div class="gate" id="gate" aria-label="Reja con faders de volumen"></div>
+</main>
+
+<p class="turn">↻ Girá el celular para tener faders más grandes</p>
+<div class="hud">
+  <span><span id="gateName"></span> <span id="status">—</span></span>
+  <span class="btns">
+    <button class="rec" id="recBtn" type="button">Grabar</button>
+    <button class="pill" id="toMenu" type="button">Menú</button>
+    <button class="pill" id="silence" type="button">Silenciar</button>
+  </span>
+</div>
+
+<section class="sheet" id="sheet" hidden aria-label="Cargar audios">
+  <header>
+    <h2>Audios · <span id="sheetGate"></span></h2>
+    <button class="pill" id="closeSheet" type="button">Listo</button>
+  </header>
+  <p class="hint">Los barrotes van del 1 (izquierda) al 14 (derecha). Lo que cargues acá reemplaza al audio de la página solo en este celular. Suena en loop.</p>
+  <button class="pill all" id="pickAll" type="button">Elegir varios a la vez (se asignan en orden alfabético)</button>
+  <div class="rows" id="rows"></div>
+</section>
+<section class="sheet" id="takeSheet" hidden aria-label="Tu propuesta sonora">
+  <header>
+    <h2>Tu propuesta</h2>
+    <span id="takeLen" style="color:var(--muted);font-size:12px;font-variant-numeric:tabular-nums"></span>
+  </header>
+  <div class="take">
+    <audio id="takeAudio" controls playsinline></audio>
+    <label for="takeName">Tu nombre o un título (opcional)
+      <input id="takeName" type="text" maxlength="60" autocomplete="off" placeholder="Ej.: Lucía, “lluvia en la reja”">
+    </label>
+    <div class="actions">
+      <button class="pill hot send" id="takeSend" type="button">Enviar mi propuesta</button>
+      <button class="pill" id="takeAgain" type="button">Grabar de nuevo</button>
+      <button class="pill" id="takeDiscard" type="button">Descartar</button>
+    </div>
+    <p class="msg" id="takeMsg" role="status"></p>
+  </div>
+</section>
+<input type="file" id="fileOne" accept="audio/*,.mp3,.wav,.m4a,.aac,.ogg,.flac" hidden>
+<input type="file" id="fileMany" accept="audio/*,.mp3,.wav,.m4a,.aac,.ogg,.flac" multiple hidden>
+
+<div class="start" id="start">
+  <div class="inner">
+    <img class="logo" src="logo.png" width="380" height="96" alt="Bachillerato de Bellas Artes · Universidad Nacional de La Plata">
+    <h1>Memorias del Bachi<small>lo que aún resuena</small></h1>
+    <p>Elegí un portón. Cada barrote es un fader: deslizá hacia arriba para subir su volumen y componer con sonidos del pasado y del presente. Cuando quieras, seleccioná <b class="kw">GRABAR</b> y dejanos tu composición.</p>
+    <nav class="menu" aria-label="Elegir portón">
+      <button type="button" data-gate="1"><b>Portón 1</b><span>14 sonidos</span></button>
+      <button type="button" data-gate="2"><b>Portón 2</b><span>14 sonidos</span></button>
+      <button type="button" data-gate="3"><b>Portón 3</b><span>14 sonidos</span></button>
+    </nav>
+  </div>
+</div>
+
+<script src="config.js"></script>
+<script>
+// Barrotes finos medidos sobre la foto original (1200 × 1600 px)
+const IMG_W = 1200, IMG_H = 1600;
+const BARS_X = [78,150,223,294,363,437,510,645,722,796,870,946,1022,1101];
+const TRACK_TOP = 330, TRACK_BOTTOM = 822;
+const ZONE_W = 62;
+// Recorte visible de la foto (en px de la foto). Siempre incluye la zona de los faders.
+let VIEW_Y = 0, VIEW_H = IMG_H;
+const MIN_VIEW_H = 700, FOCUS_Y = 590;
+const ERA_TOP = 1228; // vereda, justo debajo del portón
+function pctY(y){ return ((y - VIEW_Y) / VIEW_H * 100) + '%'; }
+
+const gate = document.getElementById('gate');
+const statusEl = document.getElementById('status');
+const rowsEl = document.getElementById('rows');
+const faders = [];
+let ctx = null, master = null, gateNum = 0, recDest = null, faderBus = null;
+
+
+// ---------- Faders ----------
+BARS_X.forEach((x, i) => {
+  const z = document.createElement('div');
+  z.className = 'zone'; z.tabIndex = 0;
+  z.setAttribute('role','slider');
+  z.setAttribute('aria-label','Barrote ' + (i+1));
+  z.setAttribute('aria-valuemin','0'); z.setAttribute('aria-valuemax','100');
+  z.style.left  = ((x - ZONE_W/2) / IMG_W * 100) + '%';
+  z.style.width = (ZONE_W / IMG_W * 100) + '%';
+  const lit = document.createElement('div'); lit.className = 'lit';
+  const knob = document.createElement('div'); knob.className = 'knob';
+  const tag = document.createElement('div'); tag.className = 'tag'; tag.textContent = i + 1;
+  z.append(lit, knob, tag);
+  gate.append(z);
+  const f = { i, zone:z, lit, knob, tag, value:0, gain:null, voice:null, nodes:[], pointer:null,
+              local:null /* {name, blob} cargado en el celular */, source:'—' };
+  faders.push(f);
+  render(f);
+
+  z.addEventListener('pointerdown', e => {
+    e.preventDefault();
+    z.setPointerCapture(e.pointerId);
+    f.pointer = e.pointerId; z.classList.add('active');
+    setFromEvent(f, e);
+  });
+  z.addEventListener('pointermove', e => { if (f.pointer === e.pointerId) setFromEvent(f, e); });
+  const end = e => { if (f.pointer === e.pointerId){ f.pointer = null; z.classList.remove('active'); } };
+  z.addEventListener('pointerup', end);
+  z.addEventListener('pointercancel', end);
+  z.addEventListener('keydown', e => {
+    const step = e.shiftKey ? .1 : .02;
+    if (e.key === 'ArrowUp' || e.key === 'ArrowRight') { setValue(f, f.value + step); e.preventDefault(); }
+    if (e.key === 'ArrowDown' || e.key === 'ArrowLeft') { setValue(f, f.value - step); e.preventDefault(); }
+  });
+});
+
+function layout(){
+  const st = gate.parentElement.getBoundingClientRect();
+  const W = st.width, H = st.height;
+  if (!W || !H) return;
+  VIEW_H = Math.max(MIN_VIEW_H, Math.min(IMG_H, IMG_W * H / W));
+  VIEW_Y = Math.max(0, Math.min(IMG_H - VIEW_H, FOCUS_Y - VIEW_H / 2));
+  const w = Math.min(W, H * IMG_W / VIEW_H);
+  const h = w * VIEW_H / IMG_W;
+  gate.style.width = w + 'px';
+  gate.style.height = h + 'px';
+  gate.style.backgroundPosition = '0 ' + (-VIEW_Y / IMG_W * w) + 'px';
+  gate.style.setProperty('--gw', w + 'px');
+  eras.forEach(e => {
+    const bh = e.btn.offsetHeight || 28;
+    const top = Math.min((ERA_TOP - VIEW_Y) / VIEW_H * h, h - bh - Math.max(6, h * .012));
+    e.btn.style.top = top + 'px';
+  });
+  faders.forEach(f => {
+    f.tag.style.top = 'calc(' + ((TRACK_BOTTOM - VIEW_Y) / VIEW_H * 100) + '% + 6px)';
+    render(f);
+  });
+}
+function setFromEvent(f, e){
+  const r = gate.getBoundingClientRect();
+  const yImg = VIEW_Y + (e.clientY - r.top) / r.height * VIEW_H;
+  setValue(f, 1 - (yImg - TRACK_TOP) / (TRACK_BOTTOM - TRACK_TOP));
+}
+function setValue(f, v){
+  f.value = Math.max(0, Math.min(1, v));
+  render(f);
+  if (f.gain && ctx) f.gain.gain.setTargetAtTime(f.value * f.value, ctx.currentTime, 0.03);
+}
+function render(f){
+  const yImg = TRACK_BOTTOM - f.value * (TRACK_BOTTOM - TRACK_TOP);
+  f.knob.style.top = pctY(yImg);
+  f.lit.style.top = pctY(yImg);
+  f.lit.style.height = ((TRACK_BOTTOM - yImg) / VIEW_H * 100) + '%';
+  f.lit.style.opacity = f.value > 0.005 ? (0.35 + f.value * 0.65) : 0;
+  f.zone.classList.toggle('on', f.value > 0.005);
+  f.zone.setAttribute('aria-valuenow', Math.round(f.value * 100));
+}
+document.getElementById('silence').addEventListener('click', () => { faders.forEach(f => setValue(f, 0)); eras.forEach(stopEra); });
+
+// ---------- Guardado en el celular (IndexedDB) ----------
+const DB_NAME = 'reja-sonora', STORE = 'audios';
+function idb(){
+  return new Promise((res, rej) => {
+    try{
+      const r = indexedDB.open(DB_NAME, 1);
+      r.onupgradeneeded = () => r.result.createObjectStore(STORE);
+      r.onsuccess = () => res(r.result);
+      r.onerror = () => rej(r.error);
+    }catch(e){ rej(e); }
+  });
+}
+async function idbDo(mode, fn){
+  try{
+    const db = await idb();
+    return await new Promise((res, rej) => {
+      const tx = db.transaction(STORE, mode);
+      const out = fn(tx.objectStore(STORE));
+      tx.oncomplete = () => res(out && out.result);
+      tx.onerror = () => rej(tx.error);
+    });
+  }catch(_){ return null; }
+}
+const key = i => 'p' + gateNum + '-' + i;
+const saveLocal = (i, rec) => idbDo('readwrite', s => s.put(rec, key(i)));
+const removeLocal = i => idbDo('readwrite', s => s.delete(key(i)));
+async function loadAllLocal(){
+  try{
+    const db = await idb();
+    return await new Promise(res => {
+      const out = {};
+      const req = db.transaction(STORE).objectStore(STORE).openCursor();
+      req.onsuccess = () => { const c = req.result; if (c){ out[c.key] = c.value; c.continue(); } else res(out); };
+      req.onerror = () => res(out);
+    });
+  }catch(_){ return {}; }
+}
+
+// ---------- Audio ----------
+// Cada fader reproduce su archivo con un elemento <audio> en loop (se escucha a medida que
+// carga, sin descomprimir el archivo entero en memoria) conectado a su control de volumen.
+const pad = n => String(n).padStart(2,'0');
+const SCALE = [0,3,5,7,10,12,15,17,19,22,24,27,29,31];
+function testTone(i, out){
+  const base = [98, 73.4, 130.8][(gateNum || 1) - 1] * Math.pow(2, SCALE[i] / 12);
+  const nodes = [];
+  const amp = ctx.createGain(); amp.gain.value = 0.18; amp.connect(out);
+  [1, 2.756, 5.404].forEach((ratio, k) => {
+    const o = ctx.createOscillator(); o.frequency.value = base * ratio;
+    o.detune.value = (Math.random() - .5) * 8;
+    const g = ctx.createGain(); g.gain.value = [0.5, 0.22, 0.1][k];
+    o.connect(g).connect(amp); o.start(); nodes.push(o);
+  });
+  const trem = ctx.createGain(); trem.gain.value = 0.06;
+  const lfo = ctx.createOscillator(); lfo.frequency.value = 0.15 + i * 0.07;
+  lfo.connect(trem).connect(amp.gain); lfo.start(); nodes.push(lfo, amp);
+  return nodes;
+}
+function stopVoice(f){
+  f.nodes.forEach(n => { try{ n.stop && n.stop(); }catch(_){} try{ n.disconnect(); }catch(_){} });
+  f.nodes = [];
+  if (f.el){
+    f.el.onerror = f.el.onplaying = null;
+    f.el.pause(); f.el.removeAttribute('src'); try{ f.el.load(); }catch(_){}
+  }
+  if (f.objUrl){ URL.revokeObjectURL(f.objUrl); f.objUrl = null; }
+}
+function fallbackTone(f){
+  f.nodes = testTone(f.i, f.gain);
+  f.source = 'prueba'; updateStatus();
+}
+// Se llama dentro del toque del usuario: los celulares solo dejan arrancar audio así.
+function playFile(f, url, kind){
+  stopVoice(f);
+  const g = gateNum;
+  const el = f.el;
+  el.onplaying = () => { if (g === gateNum && f.source !== kind){ f.source = kind; updateStatus(); } };
+  el.onerror = () => { if (g === gateNum){ el.onerror = null; fallbackTone(f); } };
+  el.loop = true;
+  el.src = url;
+  const pr = el.play();
+  if (pr && pr.catch) pr.catch(err => { if (err && err.name === 'NotAllowedError') statusEl.textContent = 'Tocá la pantalla para activar el sonido'; });
+}
+function assignVoice(f){
+  if (!ctx || !gateNum) return;
+  f.source = 'cargando';
+  if (f.local){
+    const u = URL.createObjectURL(f.local.blob);
+    playFile(f, u, 'local'); f.objUrl = u; return;
+  }
+  playFile(f, 'audio/porton' + gateNum + '/' + pad(f.i + 1) + '.mp3', 'publicado');
+}
+function updateStatus(){
+  if (!ctx){ statusEl.textContent = '—'; return; }
+  if (!gateNum){ statusEl.textContent = '—'; return; }
+  const n = faders.filter(f => f.source === 'local' || f.source === 'publicado').length;
+  const test = faders.filter(f => f.source === 'prueba').length;
+  const wait = faders.length - n - test;
+  statusEl.textContent = wait ? 'cargando sonidos… ' + n + '/14'
+    : n === faders.length ? '14 sonidos' : n + '/14 sonidos · ' + test + ' con tono de prueba';
+}
+function ensureCtx(){
+  if (ctx) return;
+  ctx = new (window.AudioContext || window.webkitAudioContext)();
+  master = ctx.createGain(); master.gain.value = 0.85;
+  const comp = ctx.createDynamicsCompressor();
+  master.connect(comp).connect(ctx.destination);
+  recDest = ctx.createMediaStreamDestination();
+  comp.connect(recDest);
+  faderBus = ctx.createGain(); faderBus.connect(master);
+  faders.forEach(f => {
+    f.gain = ctx.createGain(); f.gain.gain.value = 0; f.gain.connect(faderBus);
+    f.el = new Audio(); f.el.preload = 'auto'; f.el.setAttribute('playsinline', '');
+    ctx.createMediaElementSource(f.el).connect(f.gain);
+  });
+}
+async function openGate(p){
+  ensureCtx();
+  ctx.resume();
+  gateNum = p;
+  document.getElementById('gateName').textContent = 'Portón ' + p + ' ·';
+  document.getElementById('sheetGate').textContent = 'Portón ' + p;
+  eras.forEach(stopEra);
+  faders.forEach(f => { stopVoice(f); setValue(f, 0); f.local = null; f.source = '—'; f.tag.classList.remove('has'); });
+  statusEl.textContent = 'cargando sonidos…';
+  faders.forEach(assignVoice);            // arranca ya, dentro del toque
+  const all = await loadAllLocal();       // audios propios cargados en este celular (si hay)
+  if (gateNum !== p) return;
+  faders.forEach(f => { const rec = all[key(f.i)]; if (rec){ f.local = rec; f.tag.classList.add('has'); assignVoice(f); } });
+  renderRows();
+}
+
+// ---------- Panel de carga ----------
+function renderRows(){
+  rowsEl.textContent = '';
+  faders.forEach(f => {
+    const row = document.createElement('div');
+    row.className = 'row' + (f.local ? ' has' : '');
+    const n = document.createElement('span'); n.className = 'n'; n.textContent = pad(f.i+1);
+    const name = document.createElement('span'); name.className = 'name';
+    name.textContent = f.local ? f.local.name : 'Sin audio';
+    const pick = document.createElement('button'); pick.type = 'button'; pick.className = 'go';
+    pick.textContent = f.local ? 'Cambiar' : 'Elegir';
+    pick.addEventListener('click', () => { target = f.i; fileOne.value = ''; fileOne.click(); });
+    const del = document.createElement('button'); del.type = 'button'; del.textContent = 'Quitar';
+    del.disabled = !f.local;
+    del.addEventListener('click', async () => { f.local = null; await removeLocal(f.i); await refresh(f); });
+    row.append(n, name, pick, del);
+    rowsEl.append(row);
+  });
+}
+async function refresh(f){
+  f.tag.classList.toggle('has', !!f.local);
+  renderRows();
+  if (ctx){ await assignVoice(f); updateStatus(); }
+}
+async function setLocal(i, file){
+  const f = faders[i];
+  f.local = { name: file.name, blob: file };
+  await saveLocal(i, f.local);
+  await refresh(f);
+}
+
+let target = 0;
+const fileOne = document.getElementById('fileOne');
+const fileMany = document.getElementById('fileMany');
+fileOne.addEventListener('change', () => { if (fileOne.files[0]) setLocal(target, fileOne.files[0]); });
+fileMany.addEventListener('change', async () => {
+  const files = [...fileMany.files].sort((a, b) => a.name.localeCompare(b.name, undefined, {numeric:true}));
+  for (let k = 0; k < files.length && k < faders.length; k++) await setLocal(k, files[k]);
+});
+document.getElementById('pickAll').addEventListener('click', () => { fileMany.value = ''; fileMany.click(); });
+
+const sheet = document.getElementById('sheet');
+document.getElementById('closeSheet').addEventListener('click', () => { sheet.hidden = true; });
+
+
+// ---------- Inicio ----------
+// ---------- Ayer / Hoy ----------
+// Cada portón busca audio/portonN/ayer.mp3 y hoy.mp3; si no están, usa audio/ayer.mp3 y audio/hoy.mp3.
+const eras = ['ayer','hoy'].map(name => {
+  const btn = document.createElement('button');
+  btn.type = 'button'; btn.className = 'era ' + name; btn.textContent = name;
+  btn.setAttribute('aria-pressed','false');
+  gate.append(btn);
+  const e = { name, btn, src:null, gain:null };
+  btn.addEventListener('pointerdown', ev => ev.stopPropagation());
+  btn.addEventListener('click', () => toggleEra(e));
+  return e;
+});
+const eraCache = {};
+async function loadEra(name){
+  const k = gateNum + '-' + name;
+  if (k in eraCache) return eraCache[k];
+  for (const base of ['audio/porton' + gateNum + '/', 'audio/']){
+    for (const ext of ['mp3','m4a','wav','ogg']){
+      try{
+        const res = await fetch(base + name + '.' + ext);
+        if (!res.ok) continue;
+        return eraCache[k] = await ctx.decodeAudioData(await res.arrayBuffer());
+      }catch(_){}
+    }
+  }
+  return eraCache[k] = null;
+}
+// Mientras suena AYER u HOY, los faders se silencian (siguen corriendo en loop por debajo)
+function updateDuck(){
+  const on = eras.some(e => e.btn.classList.contains('playing'));
+  document.body.classList.toggle('ducked', on);
+  if (faderBus && ctx) faderBus.gain.setTargetAtTime(on ? 0 : 1, ctx.currentTime, on ? 0.06 : 0.25);
+}
+function stopEra(e){
+  if (e.src){ try{ e.src.onended = null; e.src.stop(); }catch(_){} try{ e.src.disconnect(); }catch(_){} e.src = null; }
+  e.btn.classList.remove('playing'); e.btn.setAttribute('aria-pressed','false');
+  updateDuck();
+}
+function eraChime(e){
+  // Sonido de prueba mientras no esté cargado el audio: campanada corta
+  const t = ctx.currentTime, out = ctx.createGain();
+  out.gain.setValueAtTime(0, t); out.gain.linearRampToValueAtTime(.35, t + .01);
+  out.gain.exponentialRampToValueAtTime(.001, t + 2.5);
+  out.connect(e.gain);
+  const f0 = e.name === 'ayer' ? 220 : 330;
+  let last;
+  [1, 2.4, 3.9].forEach((r, k) => {
+    const o = ctx.createOscillator(); o.frequency.value = f0 * r;
+    const g = ctx.createGain(); g.gain.value = [1,.4,.2][k];
+    o.connect(g).connect(out); o.start(t); o.stop(t + 2.6); last = o;
+  });
+  return last;
+}
+async function toggleEra(e){
+  if (!ctx || !gateNum) return;
+  ctx.resume();
+  if (e.src){ stopEra(e); return; }
+  if (!e.gain){ e.gain = ctx.createGain(); e.gain.connect(master); }
+  e.btn.classList.add('playing'); e.btn.setAttribute('aria-pressed','true');
+  updateDuck();
+  const g = gateNum;
+  const buf = await loadEra(e.name);
+  if (g !== gateNum || !e.btn.classList.contains('playing')) return;
+  let src;
+  if (buf){ src = ctx.createBufferSource(); src.buffer = buf; src.connect(e.gain); src.start(); }
+  else src = eraChime(e);
+  e.src = src;
+  src.onended = () => { if (e.src === src){ e.src = null; e.btn.classList.remove('playing'); e.btn.setAttribute('aria-pressed','false'); updateDuck(); } };
+}
+
+layout();
+addEventListener('resize', layout);
+addEventListener('orientationchange', () => setTimeout(layout, 250));
+const startEl = document.getElementById('start');
+startEl.querySelectorAll('[data-gate]').forEach(b => b.addEventListener('click', async () => {
+  startEl.hidden = true; document.body.classList.remove('inmenu');
+  try{ await openGate(+b.dataset.gate); }catch(err){ statusEl.textContent = 'No se pudo iniciar el audio: ' + err.message; }
+  try{ await navigator.wakeLock?.request('screen'); }catch(_){}
+}));
+// ---------- Grabación de la mezcla ----------
+const MAX_SECONDS = 180;
+const recBtn = document.getElementById('recBtn');
+const takeSheet = document.getElementById('takeSheet');
+const takeAudio = document.getElementById('takeAudio');
+const takeMsg = document.getElementById('takeMsg');
+const takeSend = document.getElementById('takeSend');
+let recorder = null, chunks = [], recStart = 0, recTimer = null, take = null;
+
+function pickMime(){
+  const opts = ['audio/mp4','audio/webm;codecs=opus','audio/webm','audio/ogg;codecs=opus'];
+  if (!window.MediaRecorder) return null;
+  for (const m of opts) if (MediaRecorder.isTypeSupported(m)) return m;
+  return '';
+}
+const extFor = m => m.includes('mp4') ? 'm4a' : m.includes('ogg') ? 'ogg' : 'webm';
+const mmss = t => Math.floor(t/60) + ':' + String(Math.floor(t%60)).padStart(2,'0');
+
+function startRec(){
+  const mime = pickMime();
+  if (mime === null || !recDest){ statusEl.textContent = 'Este navegador no permite grabar.'; return; }
+  chunks = [];
+  try{ recorder = new MediaRecorder(recDest.stream, mime ? {mimeType:mime, audioBitsPerSecond:128000} : undefined); }
+  catch(_){ recorder = new MediaRecorder(recDest.stream); }
+  recorder.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
+  recorder.onstop = finishRec;
+  recorder.start(1000);
+  recStart = Date.now();
+  recBtn.classList.add('on');
+  recBtn.textContent = 'Detener 0:00';
+  recTimer = setInterval(() => {
+    const t = (Date.now() - recStart) / 1000;
+    recBtn.textContent = 'Detener ' + mmss(t);
+    if (t >= MAX_SECONDS) stopRec();
+  }, 250);
+}
+function stopRec(){
+  if (recorder && recorder.state !== 'inactive') recorder.stop();
+  clearInterval(recTimer);
+  recBtn.classList.remove('on');
+  recBtn.textContent = 'Grabar';
+}
+function finishRec(){
+  const type = (recorder.mimeType || chunks[0]?.type || 'audio/webm').split(';')[0];
+  const blob = new Blob(chunks, {type});
+  const secs = (Date.now() - recStart) / 1000;
+  if (secs < 1 || !blob.size){ statusEl.textContent = 'La grabación quedó vacía.'; return; }
+  if (take?.url) URL.revokeObjectURL(take.url);
+  take = { blob, type, secs, gate: gateNum, url: URL.createObjectURL(blob), sent:false };
+  takeAudio.src = take.url;
+  document.getElementById('takeLen').textContent = 'Portón ' + take.gate + ' · ' + mmss(secs);
+  takeMsg.textContent = ''; takeMsg.className = 'msg';
+  takeSend.disabled = false; takeSend.textContent = 'Enviar mi propuesta';
+  document.getElementById('sheet').hidden = true;
+  takeSheet.hidden = false;
+}
+recBtn.addEventListener('click', () => {
+  if (!gateNum) return;
+  if (recorder && recorder.state === 'recording') stopRec(); else { takeSheet.hidden = true; startRec(); }
+});
+
+function fileName(){
+  const d = new Date(), p2 = n => String(n).padStart(2,'0');
+  const stamp = d.getFullYear() + '-' + p2(d.getMonth()+1) + '-' + p2(d.getDate()) + '_' + p2(d.getHours()) + '-' + p2(d.getMinutes()) + '-' + p2(d.getSeconds());
+  const who = document.getElementById('takeName').value.trim()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^\w -]+/g,'').replace(/\s+/g,'-').slice(0,40);
+  return 'porton' + take.gate + '_' + stamp + (who ? '_' + who : '') + '.' + extFor(take.type);
+}
+function blobToBase64(blob){
+  return new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onload = () => res(String(r.result).split(',')[1]);
+    r.onerror = () => rej(r.error);
+    r.readAsDataURL(blob);
+  });
+}
+function offerDownload(name){
+  const a = document.createElement('a');
+  a.href = take.url; a.download = name; a.textContent = 'Descargar la grabación';
+  a.style.color = 'var(--glow)';
+  takeMsg.append(' ', a);
+}
+takeSend.addEventListener('click', async () => {
+  if (!take || take.sent) return;
+  const name = fileName();
+  const url = (window.REJA_CONFIG && window.REJA_CONFIG.UPLOAD_URL || '').trim();
+  if (!url){
+    takeMsg.className = 'msg err';
+    takeMsg.textContent = 'El envío todavía no está configurado (falta la dirección del script en config.js).';
+    offerDownload(name); return;
+  }
+  takeSend.disabled = true; takeSend.textContent = 'Enviando…';
+  takeMsg.className = 'msg'; takeMsg.textContent = '';
+  try{
+    const body = JSON.stringify({
+      filename: name, mime: take.type, gate: take.gate,
+      seconds: Math.round(take.secs), title: document.getElementById('takeName').value.trim(),
+      audio: await blobToBase64(take.blob)
+    });
+    const res = await fetch(url, { method:'POST', body, headers:{'Content-Type':'text/plain;charset=utf-8'} });
+    const out = await res.json().catch(() => ({ok:res.ok}));
+    if (!out.ok) throw new Error(out.error || 'respuesta inesperada');
+    take.sent = true;
+    takeSend.textContent = 'Enviada';
+    takeMsg.className = 'msg ok';
+    takeMsg.textContent = 'Gracias. Tu propuesta quedó guardada en el archivo de la obra.';
+  }catch(err){
+    takeSend.disabled = false; takeSend.textContent = 'Reintentar envío';
+    takeMsg.className = 'msg err';
+    takeMsg.textContent = 'No se pudo enviar. Revisá la conexión y probá de nuevo.';
+    offerDownload(name);
+  }
+});
+document.getElementById('takeAgain').addEventListener('click', () => { takeSheet.hidden = true; startRec(); });
+document.getElementById('takeDiscard').addEventListener('click', () => {
+  takeSheet.hidden = true; takeAudio.removeAttribute('src');
+  if (take?.url) URL.revokeObjectURL(take.url); take = null;
+});
+
+document.getElementById('toMenu').addEventListener('click', () => {
+  stopRec(); takeSheet.hidden = true;
+  eras.forEach(stopEra);
+  faders.forEach(f => { setValue(f, 0); stopVoice(f); });
+  gateNum = 0; sheet.hidden = true; startEl.hidden = false; document.body.classList.add('inmenu');
+  document.getElementById('gateName').textContent = ''; statusEl.textContent = '—';
+});
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && ctx && ctx.state !== 'running') ctx.resume();
+});
+</script>
+
+</body>
+</html>
