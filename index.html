@@ -152,6 +152,10 @@ body.ducked .zone{opacity:.35;}
   text-transform:uppercase;text-wrap:balance;
 }
 .start p{margin:0;color:var(--muted);font-size:13px;line-height:1.55;}
+.start .credit{
+  margin-top:6px;font-size:11px;letter-spacing:.08em;line-height:1.5;
+  color:var(--muted);text-wrap:balance;
+}
 .start .kw{color:var(--rec);font-weight:500;letter-spacing:.06em;}
 .start .logo{width:min(240px,70vw);height:auto;margin-bottom:6px;}
 .start h1 small{display:block;margin-top:8px;font-weight:500;font-size:.42em;letter-spacing:.14em;color:var(--glow);}
@@ -186,12 +190,13 @@ body.inmenu .turn{display:none;}
   .start .inner{
     max-width:min(920px,100%);column-gap:clamp(20px,5vw,56px);row-gap:10px;align-items:center;
     grid-template-columns:minmax(0,1fr) minmax(0,1fr);
-    grid-template-areas:"logo menu" "title menu" "text menu";
+    grid-template-areas:"logo menu" "title menu" "text menu" "credit credit";
   }
   .start .logo{grid-area:logo;width:min(190px,40vw);margin:0;}
   .start h1{grid-area:title;font-size:clamp(1.7rem,8vh,2.6rem);}
   .start p{grid-area:text;font-size:12px;}
   .start .menu{grid-area:menu;margin:0;}
+  .start .credit{grid-area:credit;margin-top:2px;}
   .menu button{padding:11px 16px;}
   .menu b{font-size:1.25rem;}
   .sheet{max-height:92dvh;}
@@ -204,7 +209,7 @@ body.inmenu .turn{display:none;}
   .start .inner{max-width:26rem;}
   .start p{font-size:14px;}
 }
-body.inmenu .hud{visibility:hidden;}
+body.inmenu .hud, body.inmenu .era{visibility:hidden;}
 .rec{
   pointer-events:auto;display:inline-flex;align-items:center;gap:8px;
   font:inherit;font-size:11px;letter-spacing:.08em;text-transform:uppercase;
@@ -292,6 +297,7 @@ body.inmenu .hud{visibility:hidden;}
       <button type="button" data-gate="2"><b>Portón 2</b><span>14 sonidos</span></button>
       <button type="button" data-gate="3"><b>Portón 3</b><span>14 sonidos</span></button>
     </nav>
+    <p class="credit">Propuesta de estudiantes de composición experimental de 5to año</p>
   </div>
 </div>
 
