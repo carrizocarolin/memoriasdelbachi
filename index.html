@@ -20,8 +20,6 @@
   --glow-soft:rgba(255,181,71,.35);
   --rec:#ff4d3d;
   --hud-h:52px;
-  --green:#3fbf6a;
-  --green-ink:#06210f;
   --veil:rgba(10,10,9,.82);
   --display:"Oswald","Arial Narrow",Impact,sans-serif;
   --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
@@ -47,7 +45,6 @@ body{
   touch-action:none;
 }
 .zone{position:absolute;top:0;bottom:0;touch-action:none;cursor:ns-resize;transition:opacity .3s;}
-body.ducked .zone{opacity:.35;}
 .zone:focus-visible{outline:2px solid var(--glow);outline-offset:-2px;}
 .lit{
   position:absolute;left:50%;transform:translateX(-50%);
@@ -72,26 +69,7 @@ body.ducked .zone{opacity:.35;}
   pointer-events:none;font-variant-numeric:tabular-nums;
 }
 .tag.has{color:var(--bg);background:var(--glow);}
-/* Botones "ayer" / "hoy" bajo el portón */
-.era{
-  position:absolute;z-index:1;
-  font-family:var(--display);font-weight:500;text-transform:uppercase;letter-spacing:.12em;
-  font-size:clamp(11px,calc(var(--gw,400px) * .028),16px);line-height:1;
-  color:var(--green-ink);background:var(--green);
-  border:1px solid var(--green);border-radius:4px;
-  padding:.55em .9em .5em;cursor:pointer;touch-action:manipulation;
-  box-shadow:0 2px 6px rgba(0,0,0,.45);
-}
-.era.ayer{left:3.5%;}
-.era.hoy{right:3.5%;}
-.era::before{content:"▶";font-size:.7em;margin-right:.55em;vertical-align:.1em;}
-.era.playing{background:var(--green-ink);color:var(--green);}
-.era.playing::before{content:"■";}
-.era:focus-visible{outline:2px solid var(--fg);outline-offset:2px;}
-@media (prefers-reduced-motion:no-preference){
-  .era.playing{animation:pulse 1.2s ease-in-out infinite;}
-  @keyframes pulse{50%{box-shadow:0 0 0 5px rgba(63,191,106,.25);}}
-}
+
 
 .hud{
   position:fixed;left:0;right:0;bottom:0;
@@ -209,7 +187,7 @@ body.inmenu .turn{display:none;}
   .start .inner{max-width:26rem;}
   .start p{font-size:14px;}
 }
-body.inmenu .hud, body.inmenu .era{visibility:hidden;}
+body.inmenu .hud{visibility:hidden;}
 .rec{
   pointer-events:auto;display:inline-flex;align-items:center;gap:8px;
   font:inherit;font-size:11px;letter-spacing:.08em;text-transform:uppercase;
@@ -314,8 +292,7 @@ const TRACK_TOP = 330, TRACK_BOTTOM = 822;
 const ZONE_W = 62;
 // Recorte visible de la foto (en px de la foto). Siempre incluye la zona de los faders.
 let VIEW_Y = 0, VIEW_H = IMG_H;
-const MIN_VIEW_H = 700, FOCUS_Y = 590;
-const ERA_TOP = 1228; // vereda, justo debajo del portón
+const MIN_VIEW_H = 640, FOCUS_Y = 565;
 function pctY(y){ return ((y - VIEW_Y) / VIEW_H * 100) + '%'; }
 
 const gate = document.getElementById('gate');
@@ -373,11 +350,6 @@ function layout(){
   gate.style.height = h + 'px';
   gate.style.backgroundPosition = '0 ' + (-VIEW_Y / IMG_W * w) + 'px';
   gate.style.setProperty('--gw', w + 'px');
-  eras.forEach(e => {
-    const bh = e.btn.offsetHeight || 28;
-    const top = Math.min((ERA_TOP - VIEW_Y) / VIEW_H * h, h - bh - Math.max(6, h * .012));
-    e.btn.style.top = top + 'px';
-  });
   faders.forEach(f => {
     f.tag.style.top = 'calc(' + ((TRACK_BOTTOM - VIEW_Y) / VIEW_H * 100) + '% + 6px)';
     render(f);
@@ -402,7 +374,7 @@ function render(f){
   f.zone.classList.toggle('on', f.value > 0.005);
   f.zone.setAttribute('aria-valuenow', Math.round(f.value * 100));
 }
-document.getElementById('silence').addEventListener('click', () => { faders.forEach(f => setValue(f, 0)); eras.forEach(stopEra); });
+document.getElementById('silence').addEventListener('click', () => faders.forEach(f => setValue(f, 0)));
 
 // ---------- Guardado en el celular (IndexedDB) ----------
 const DB_NAME = 'reja-sonora', STORE = 'audios';
@@ -526,7 +498,6 @@ async function openGate(p){
   gateNum = p;
   document.getElementById('gateName').textContent = 'Portón ' + p + ' ·';
   document.getElementById('sheetGate').textContent = 'Portón ' + p;
-  eras.forEach(stopEra);
   faders.forEach(f => { stopVoice(f); setValue(f, 0); f.local = null; f.source = '—'; f.tag.classList.remove('has'); });
   statusEl.textContent = 'cargando sonidos…';
   faders.forEach(assignVoice);            // arranca ya, dentro del toque
@@ -582,76 +553,6 @@ document.getElementById('closeSheet').addEventListener('click', () => { sheet.hi
 
 
 // ---------- Inicio ----------
-// ---------- Ayer / Hoy ----------
-// Cada portón busca audio/portonN/ayer.mp3 y hoy.mp3; si no están, usa audio/ayer.mp3 y audio/hoy.mp3.
-const eras = ['ayer','hoy'].map(name => {
-  const btn = document.createElement('button');
-  btn.type = 'button'; btn.className = 'era ' + name; btn.textContent = name;
-  btn.setAttribute('aria-pressed','false');
-  gate.append(btn);
-  const e = { name, btn, src:null, gain:null };
-  btn.addEventListener('pointerdown', ev => ev.stopPropagation());
-  btn.addEventListener('click', () => toggleEra(e));
-  return e;
-});
-const eraCache = {};
-async function loadEra(name){
-  const k = gateNum + '-' + name;
-  if (k in eraCache) return eraCache[k];
-  for (const base of ['audio/porton' + gateNum + '/', 'audio/']){
-    for (const ext of ['mp3','m4a','wav','ogg']){
-      try{
-        const res = await fetch(base + name + '.' + ext);
-        if (!res.ok) continue;
-        return eraCache[k] = await ctx.decodeAudioData(await res.arrayBuffer());
-      }catch(_){}
-    }
-  }
-  return eraCache[k] = null;
-}
-// Mientras suena AYER u HOY, los faders se silencian (siguen corriendo en loop por debajo)
-function updateDuck(){
-  const on = eras.some(e => e.btn.classList.contains('playing'));
-  document.body.classList.toggle('ducked', on);
-  if (faderBus && ctx) faderBus.gain.setTargetAtTime(on ? 0 : 1, ctx.currentTime, on ? 0.06 : 0.25);
-}
-function stopEra(e){
-  if (e.src){ try{ e.src.onended = null; e.src.stop(); }catch(_){} try{ e.src.disconnect(); }catch(_){} e.src = null; }
-  e.btn.classList.remove('playing'); e.btn.setAttribute('aria-pressed','false');
-  updateDuck();
-}
-function eraChime(e){
-  // Sonido de prueba mientras no esté cargado el audio: campanada corta
-  const t = ctx.currentTime, out = ctx.createGain();
-  out.gain.setValueAtTime(0, t); out.gain.linearRampToValueAtTime(.35, t + .01);
-  out.gain.exponentialRampToValueAtTime(.001, t + 2.5);
-  out.connect(e.gain);
-  const f0 = e.name === 'ayer' ? 220 : 330;
-  let last;
-  [1, 2.4, 3.9].forEach((r, k) => {
-    const o = ctx.createOscillator(); o.frequency.value = f0 * r;
-    const g = ctx.createGain(); g.gain.value = [1,.4,.2][k];
-    o.connect(g).connect(out); o.start(t); o.stop(t + 2.6); last = o;
-  });
-  return last;
-}
-async function toggleEra(e){
-  if (!ctx || !gateNum) return;
-  ctx.resume();
-  if (e.src){ stopEra(e); return; }
-  if (!e.gain){ e.gain = ctx.createGain(); e.gain.connect(master); }
-  e.btn.classList.add('playing'); e.btn.setAttribute('aria-pressed','true');
-  updateDuck();
-  const g = gateNum;
-  const buf = await loadEra(e.name);
-  if (g !== gateNum || !e.btn.classList.contains('playing')) return;
-  let src;
-  if (buf){ src = ctx.createBufferSource(); src.buffer = buf; src.connect(e.gain); src.start(); }
-  else src = eraChime(e);
-  e.src = src;
-  src.onended = () => { if (e.src === src){ e.src = null; e.btn.classList.remove('playing'); e.btn.setAttribute('aria-pressed','false'); updateDuck(); } };
-}
-
 layout();
 addEventListener('resize', layout);
 addEventListener('orientationchange', () => setTimeout(layout, 250));
@@ -782,7 +683,6 @@ document.getElementById('takeDiscard').addEventListener('click', () => {
 
 document.getElementById('toMenu').addEventListener('click', () => {
   stopRec(); takeSheet.hidden = true;
-  eras.forEach(stopEra);
   faders.forEach(f => { setValue(f, 0); stopVoice(f); });
   gateNum = 0; sheet.hidden = true; startEl.hidden = false; document.body.classList.add('inmenu');
   document.getElementById('gateName').textContent = ''; statusEl.textContent = '—';
